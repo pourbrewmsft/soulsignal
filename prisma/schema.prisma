@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessions         Session[]
+  consents         UserConsent[]
+  deviceConnections DeviceConnection[]
+  dataSummaries    DataSummary[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  type      SessionType
+  startTime DateTime @default(now())
+  endTime   DateTime?
+  duration  Int? // in seconds
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readings     BiometricReading[]
+  distractions Distraction[]
+
+  @@map("sessions")
+}
+
+model BiometricReading {
+  id         String   @id @default(cuid())
+  sessionId  String?
+  userId     String
+  timestamp  DateTime @default(now())
+  deviceId   String
+  deviceType DeviceType
+  dataType   DataType
+  value      Float
+  unit       String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  session Session? @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp])
+  @@index([deviceType, dataType])
+  @@map("biometric_readings")
+}
+
+model Distraction {
+  id        String   @id @default(cuid())
+  sessionId String
+  timestamp DateTime @default(now())
+  type      DistractionType
+  intensity Int // 1-10
+  note      String?
+  createdAt DateTime @default(now())
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("distractions")
+}
+
+model UserConsent {
+  id         String   @id @default(cuid())
+  userId     String
+  deviceType DeviceType
+  dataTypes  String[]
+  granted    Boolean
+  grantedAt  DateTime @default(now())
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceType])
+  @@map("user_consents")
+}
+
+model DeviceConnection {
+  id           String   @id @default(cuid())
+  userId       String
+  deviceType   DeviceType
+  deviceId     String
+  isConnected  Boolean  @default(false)
+  lastSync     DateTime?
+  accessToken  String?
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, deviceType, deviceId])
+  @@map("device_connections")
+}
+
+model DataSummary {
+  id         String   @id @default(cuid())
+  userId     String
+  date       DateTime
+  deviceType String
+  metrics    Json
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date, deviceType])
+  @@map("data_summaries")
+}
+
+enum SessionType {
+  MEDITATION
+  PRAYER
+  GENERAL
+}
+
+enum DeviceType {
+  OURA
+  GARMIN
+  APPLE
+  MUSE
+}
+
+enum DataType {
+  HEART_RATE
+  HRV
+  EEG
+  SLEEP
+  ACTIVITY
+  TEMPERATURE
+  OXYGEN_SATURATION
+}
+
+enum DistractionType {
+  MENTAL
+  PHYSICAL
+  EMOTIONAL
+}
